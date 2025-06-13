@@ -1,0 +1,16 @@
+[project]
+name = "bba"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.3.0",
+    "streamlit>=1.45.1",
+]
+
+[dependency-groups]
+lint = [
+    "mypy>=1.16.0",
+    "pandas-stubs>=2.2.3.250527",
+]
