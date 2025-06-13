@@ -1,7 +1,14 @@
 import streamlit as st
 import pandas as pd
 
-from helpers import co_draft_multiple, next_pick_distribution
+from helpers import (
+    co_draft_multiple,
+    next_pick_distribution,
+    what_if_simulator,
+)
+
+if "draft_picks" not in st.session_state:
+    st.session_state.draft_picks = []
 
 
 # Cache data loading for performance
@@ -71,6 +78,20 @@ def main() -> None:
             st.write(f"No subsequent picks found for {single_player}.")
         else:
             st.dataframe(dist_df)
+
+    st.sidebar.header("What-If Scenario Simulator")
+    sim_player = st.sidebar.selectbox(
+        "Pick base player:", player_list, key="sim_player"
+    )
+    sim_picks = st.sidebar.slider("Number of next teammates to simulate:", 1, 8, 4)
+    if st.sidebar.button("Run What-If Simulator"):
+        st.subheader(f"Historic Teammate Picks after {sim_player}")
+        sim_df = what_if_simulator(df, sim_player, sim_picks)
+        if sim_df.empty:
+            st.write(f"No simulation data available for {sim_player}.")
+        else:
+            st.write("**Pick Offset Breakdown**")
+            st.dataframe(sim_df)
 
 
 if __name__ == "__main__":

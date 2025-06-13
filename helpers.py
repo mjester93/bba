@@ -9,6 +9,72 @@ import pandas as pd
 NUM_TEAMS = 12
 
 
+def what_if_simulator(
+    df: pd.DataFrame, player: str, num_picks: int = 4
+) -> pd.DataFrame:
+    """
+    For a given player, simulate the next num_picks teammates by historical frequency.
+    Vectorized implementation without iterrows.
+    Returns a DataFrame with columns: pick_offset, next_player, Team, Position, count, pct.
+    """
+    # occurrences with unique index
+    occ = (
+        df.loc[
+            df["PLAYERNAME"] == player,
+            ["SNAKEDRAFTNUM", "draft_slot", "OVERALLPICKNUM"],
+        ]
+        .reset_index(drop=False)
+        .rename(columns={"index": "occ_index", "OVERALLPICKNUM": "pick_num"})
+    )
+    if occ.empty:
+        return pd.DataFrame(
+            columns=["pick_offset", "next_player", "Team", "Position", "count", "pct"]
+        )
+    # merge occurrences with all picks in same draft & slot
+    merged = occ.merge(
+        df[["SNAKEDRAFTNUM", "draft_slot", "OVERALLPICKNUM", "PLAYERNAME"]],
+        on=["SNAKEDRAFTNUM", "draft_slot"],
+        how="left",
+    ).rename(columns={"OVERALLPICKNUM": "candidate_pick", "PLAYERNAME": "next_player"})
+    # filter picks after occ pick
+    filtered = merged[merged["candidate_pick"] > merged["pick_num"]]
+    if filtered.empty:
+        return pd.DataFrame(
+            columns=["pick_offset", "next_player", "Team", "Position", "count", "pct"]
+        )
+    # compute pick offset per occurrence (rank within each occ)
+    filtered["pick_offset"] = (
+        filtered.sort_values(["occ_index", "candidate_pick"])
+        .groupby("occ_index")
+        .cumcount()
+        + 1
+    )
+    # keep only up to num_picks
+    filtered = filtered[filtered["pick_offset"] <= num_picks]
+    # aggregate counts
+    agg = (
+        filtered.groupby(["pick_offset", "next_player"])
+        .size()
+        .reset_index(name="count")
+    )
+    # compute percentages per offset
+    agg["pct"] = agg.groupby("pick_offset")["count"].transform(
+        lambda x: x / x.sum() * 100
+    )
+    # filter top 5 per pick_offset
+    top5 = (
+        agg.sort_values(["pick_offset", "count"], ascending=[True, False])
+        .groupby("pick_offset")
+        .head(5)
+        .reset_index(drop=True)
+    )
+    # add team and position columns for each next_player
+    info = df[["PLAYERNAME", "Team", "Position"]].drop_duplicates("PLAYERNAME")
+    top5 = top5.merge(info, left_on="next_player", right_on="PLAYERNAME", how="left")
+    top5 = top5[["pick_offset", "next_player", "Team", "Position", "count", "pct"]]
+    return top5
+
+
 def next_pick_distribution(df: pd.DataFrame, player: str) -> pd.DataFrame:
     """
     For a given player, compute the distribution of the next player taken
